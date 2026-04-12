@@ -1,0 +1,14 @@
+.canvas-container {
+  flex: 1;
+  position: relative;
+  background: #222222;
+  overflow: hidden;
+  border: 2px solid red !important;
+}
+
+/* Konva stage container */
+.canvas-container > div {
+  width: 100% !important;
+  height: 100% !important;
+  background: #1a1a1a;
+}
