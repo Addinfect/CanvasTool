@@ -207,12 +207,20 @@ const Canvas = () => {
   const handleMouseDown = (e: any) => {
     // Don't pan while resizing
     if (resizingNodeId) return
-    
+
     // Save edit if clicking stage while editing
     if (editingNodeId && e.target === e.target.getStage()) {
       handleSaveEdit()
     }
-    
+
+    // Deselect all nodes when clicking empty stage area (left mouse button only)
+    if (e.target === e.target.getStage() && selectedNodeIds.length > 0 && e.evt.button === 0) {
+      // Only deselect if not editing and not resizing
+      if (!editingNodeId && !resizingNodeId) {
+        setSelectedNodeIds([])
+      }
+    }
+
     // Only pan when clicking background (stage)
     if (e.target === e.target.getStage()) {
       // Allow left (0) or middle (1) mouse button for panning
@@ -223,7 +231,6 @@ const Canvas = () => {
       }
     }
   }
-
   const handleMouseMove = (e: any) => {
     if (!isDragging) return
 
