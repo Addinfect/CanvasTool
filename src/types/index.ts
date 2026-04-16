@@ -36,6 +36,34 @@ export interface CanvasFile {
   edges: CanvasEdge[]
 }
 
+// Canvas export/import format
+export interface CanvasExportData {
+  version: string
+  metadata?: {
+    name?: string
+    description?: string
+    created?: string
+    modified?: string
+    author?: string
+  }
+  canvas: {
+    pan: { x: number; y: number }
+    zoom: number
+    gridSize: number
+    gridVisible: boolean
+    snapToGrid: boolean
+  }
+  nodes: CanvasNode[]
+  edges: CanvasEdge[]
+}
+
+// Local storage keys
+export const LOCAL_STORAGE_KEYS = {
+  CANVAS_DATA: 'canvasTool_canvasData',
+  LAST_SAVED: 'canvasTool_lastSaved',
+  AUTO_SAVE_ENABLED: 'canvasTool_autoSaveEnabled'
+} as const
+
 // State management types
 export interface CanvasState {
   nodes: CanvasNode[]
@@ -49,4 +77,5 @@ export interface CanvasState {
   snapToGrid: boolean
   connectionStart: { nodeId: string; side: 'top' | 'right' | 'bottom' | 'left'; x: number; y: number } | null
   connectionTempEnd: { x: number; y: number } | null
+  autoSaveEnabled?: boolean
 }

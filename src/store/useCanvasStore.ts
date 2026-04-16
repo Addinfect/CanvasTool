@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import { CanvasState, CanvasNode, CanvasEdge } from '../types'
+import { CanvasState, CanvasNode, CanvasEdge, CanvasExportData } from '../types'
+import { importCanvas, exportCanvas, saveCanvasToLocalStorage, loadCanvasFromLocalStorage, isAutoSaveEnabled, setAutoSaveEnabled } from '../utils/canvasExport'
 
 interface CanvasActions {
   setNodes: (nodes: CanvasNode[]) => void
@@ -23,7 +24,13 @@ interface CanvasActions {
   updateTempConnection: (x: number, y: number) => void
   finishConnection: (targetNodeId: string) => void
   cancelConnection: () => void
-
+  importCanvasData: (data: CanvasExportData) => void
+  resetCanvas: () => void
+  clearCanvas: () => void
+  exportCanvasData: () => CanvasExportData
+  saveToLocalStorage: () => boolean
+  loadFromLocalStorage: () => boolean
+  setAutoSaveEnabled: (enabled: boolean) => void
 }
 
 const initialState: CanvasState = {
@@ -38,6 +45,7 @@ const initialState: CanvasState = {
   snapToGrid: true,
   connectionStart: null,
   connectionTempEnd: null,
+  autoSaveEnabled: isAutoSaveEnabled(),
 }
 
 export const useCanvasStore = create<CanvasState & CanvasActions>()(
@@ -138,6 +146,48 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
         state.connectionTempEnd = null
       }),
 
+    importCanvasData: (data) =>
+      set((state) => {
+        const updates = importCanvas(data)
+        Object.assign(state, updates)
+      }),
+
+    resetCanvas: () =>
+      set((state) => {
+        Object.assign(state, initialState)
+        state.autoSaveEnabled = isAutoSaveEnabled()
+      }),
+
+    clearCanvas: () =>
+      set((state) => {
+        state.nodes = []
+        state.edges = []
+        state.selectedNodeIds = []
+        state.selectedEdgeIds = []
+      }),
+
+    exportCanvasData: () => {
+      return exportCanvas(useCanvasStore.getState())
+    },
+
+    saveToLocalStorage: () => {
+      return saveCanvasToLocalStorage(useCanvasStore.getState())
+    },
+
+    loadFromLocalStorage: () => {
+      const data = loadCanvasFromLocalStorage()
+      if (data) {
+        useCanvasStore.getState().importCanvasData(data)
+        return true
+      }
+      return false
+    },
+
+    setAutoSaveEnabled: (enabled) =>
+      set((state) => {
+        state.autoSaveEnabled = enabled
+        setAutoSaveEnabled(enabled)
+      }),
 
   }))
 )

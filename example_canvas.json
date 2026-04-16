@@ -1,0 +1,161 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "CanvasTool 2.0 Demo",
+    "description": "Example canvas showcasing new features: colors, tags, AI metadata, and more",
+    "created": "2026-04-16T00:00:00.000Z",
+    "modified": "2026-04-16T21:50:00.000Z",
+    "author": "CanvasTool User"
+  },
+  "canvas": {
+    "pan": {
+      "x": 0,
+      "y": 0
+    },
+    "zoom": 1,
+    "gridSize": 20,
+    "gridVisible": true,
+    "snapToGrid": false
+  },
+  "nodes": [
+    {
+      "id": "node-welcome",
+      "type": "text",
+      "x": 100,
+      "y": 100,
+      "width": 300,
+      "height": 180,
+      "text": "# Welcome to CanvasTool 2.0!\n\nThis canvas showcases the new features:\n• **Colors** for each node\n• **Tags** for organization\n• **AI Metadata** for smart features\n• **Auto-save** every 2 seconds\n• **JSON Export/Import**\n• **Resize handles** on all corners\n• **Inline text editing**",
+      "color": "#3B82F6",
+      "tags": ["welcome", "feature-showcase"],
+      "aiMetadata": {
+        "summary": "Introduction node explaining CanvasTool 2.0 features",
+        "embedding": []
+      }
+    },
+    {
+      "id": "node-colors",
+      "type": "text",
+      "x": 450,
+      "y": 100,
+      "width": 220,
+      "height": 150,
+      "text": "## Colorful Nodes\n\nEach node can have a custom background color. Try changing colors via the properties panel (coming soon).",
+      "color": "#10B981",
+      "tags": ["colors", "styling"],
+      "aiMetadata": {
+        "summary": "Node demonstrating color customization feature"
+      }
+    },
+    {
+      "id": "node-organization",
+      "type": "text",
+      "x": 100,
+      "y": 320,
+      "width": 250,
+      "height": 140,
+      "text": "## Organization\n\nUse **tags** to categorize nodes:\n• project-ideas\n• todos\n• references\n• important",
+      "color": "#8B5CF6",
+      "tags": ["organization", "tags", "productivity"],
+      "aiMetadata": {
+        "summary": "Node showing tag-based organization system"
+      }
+    },
+    {
+      "id": "node-ai",
+      "type": "text",
+      "x": 400,
+      "y": 320,
+      "width": 270,
+      "height": 160,
+      "text": "## AI-Powered Features\n\nAI metadata can store:\n• Automatic summaries\n• Semantic embeddings\n• Related content suggestions\n• Classification labels\n\nFuture: AI-assisted canvas organization",
+      "color": "#EC4899",
+      "tags": ["ai", "future", "smart-features"],
+      "aiMetadata": {
+        "summary": "Node explaining AI-powered features and metadata storage",
+        "embedding": []
+      }
+    },
+    {
+      "id": "node-interaction",
+      "type": "text",
+      "x": 700,
+      "y": 100,
+      "width": 280,
+      "height": 200,
+      "text": "## Interaction Features\n\n**Try these:**\n1. Double-click text to edit inline\n2. Drag nodes to move them\n3. Use resize handles (corners) to change size\n4. Click empty canvas to deselect\n5. Ctrl+Click for multi-selection\n6. Drag from connection handles to create edges\n\nAuto-save: Changes saved every 2 seconds",
+      "color": "#F59E0B",
+      "tags": ["interaction", "tutorial", "how-to"],
+      "aiMetadata": {
+        "summary": "Node listing interactive features and usage instructions"
+      }
+    },
+    {
+      "id": "node-export",
+      "type": "text",
+      "x": 700,
+      "y": 350,
+      "width": 250,
+      "height": 150,
+      "text": "## Export & Import\n\n**File menu offers:**\n• Save As JSON file\n• Load from JSON file\n• Auto-save toggle\n• Clear storage\n• New canvas\n• Reset to default\n\nYour work is automatically preserved!",
+      "color": "#EF4444",
+      "tags": ["export", "import", "file-management"],
+      "aiMetadata": {
+        "summary": "Node explaining export/import and file management features"
+      }
+    },
+    {
+      "id": "group-features",
+      "type": "group",
+      "x": 80,
+      "y": 80,
+      "width": 920,
+      "height": 460,
+      "label": "CanvasTool 2.0 Features Overview",
+      "color": "rgba(59, 130, 246, 0.2)",
+      "tags": ["group", "overview"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "fromNode": "node-welcome",
+      "toNode": "node-colors",
+      "label": "includes",
+      "style": "solid",
+      "color": "#6B7280"
+    },
+    {
+      "id": "edge-2",
+      "fromNode": "node-welcome",
+      "toNode": "node-organization",
+      "label": "includes",
+      "style": "solid",
+      "color": "#6B7280"
+    },
+    {
+      "id": "edge-3",
+      "fromNode": "node-welcome",
+      "toNode": "node-ai",
+      "label": "includes",
+      "style": "solid",
+      "color": "#6B7280"
+    },
+    {
+      "id": "edge-4",
+      "fromNode": "node-welcome",
+      "toNode": "node-interaction",
+      "label": "includes",
+      "style": "solid",
+      "color": "#6B7280"
+    },
+    {
+      "id": "edge-5",
+      "fromNode": "node-welcome",
+      "toNode": "node-export",
+      "label": "includes",
+      "style": "solid",
+      "color": "#6B7280"
+    }
+  ]
+}

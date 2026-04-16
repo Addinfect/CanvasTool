@@ -198,6 +198,87 @@
 
 ---
 
+### Phase 5: Server, Echtzeit-Kollaboration und KI-Integration
+
+17. **Backend-Server mit Express + Socket.io**
+    - REST-API für Canvas-Verwaltung (Create, Read, Update, Delete)
+    - Dateisystem-Speicherung: Canvases als JSON-Dateien in `./data/canvases/`
+    - Git-freundliche Struktur für Versionierung
+    - Zwei Betriebsmodi: Standalone (lokale Dateien) und Kollaboration (Server)
+
+18. **Echtzeit-Kollaboration**
+    - WebSocket-basierte Synchronisierung mit Socket.io
+    - Mehrere Benutzer können gleichzeitig an einem Canvas arbeiten
+    - Conflict Resolution: Letzter Schreibzugriff oder Optimistic Updates
+    - Benutzerpräsenz: Wer ist online, welche Nodes bearbeitet wer
+
+19. **KI-Schnittstelle**
+    - REST-Endpoints für KI-Operationen: `/api/ai/analyze`, `/api/ai/suggest`
+    - WebSocket-Unterstützung für direkte KI-Nachrichten
+    - KI kann Canvas analysieren, Nodes vorschlagen, Inhalte generieren
+    - Integration mit verschiedenen KI-Agents (ThoughtMachine, OpenAI, etc.)
+
+#### Architekturvorschlag
+
+```
+┌─────────────────┐    WebSocket/REST    ┌─────────────────┐
+│  CanvasTool     │◄────────────────────►│  Express Server │
+│  (React/Vite)   │                      │  (Node.js)      │
+└─────────────────┘                      └────────┬────────┘
+        ▲                                          │
+        │ (Load/Save)                              │ (File I/O)
+        ▼                                          ▼
+┌─────────────────┐                      ┌─────────────────┐
+│  Lokale Festplatte│                      │  Server-Filesystem │
+│  (my_canvas.json)│                      │  (canvases/*.json)│
+└─────────────────┘                      └─────────────────┘
+        ▲                                          ▲
+        │                                          │
+┌───────┴──────────┐                    ┌─────────┴─────────┐
+│   Git Repo       │                    │      KI Agent     │
+│   (Versionierung)│                    │  (ThoughtMachine) │
+└──────────────────┘                    └───────────────────┘
+```
+
+#### Implementierungsplan
+
+**Phase 1: Server-Grundgerüst**
+- Express-Server mit Basis-API
+- Dateisystem-Speicherung für Canvases
+- Einfache Lade/Speicher-Operationen via REST
+
+**Phase 2: WebSocket Integration**
+- Socket.io für Echtzeit-Updates
+- Canvas-Beitreten/Verlassen
+- Grundlegende Operationen broadcasten (nodeMoved, nodeUpdated, edgeCreated)
+
+**Phase 3: KI-Schnittstelle**
+- REST-Endpoints für KI-Operationen
+- WebSocket-Unterstützung für KI-Nachrichten
+- Beispiel-KI-Integration (ThoughtMachine)
+
+**Phase 4: Frontend-Anpassung**
+- Umschalten zwischen Standalone/Kollaborations-Modus
+- Echtzeit-Updates im UI anzeigen (Benutzerpräsenz, Live-Änderungen)
+- KI-Steuerung im UI (KI anfragen, Vorschläge annehmen/ablehnen)
+
+#### Offene Fragen
+
+1. **Priorität**: Soll der einfache Server (Phase 1) zuerst oder gleich volle Echtzeit-Kollaboration implementiert werden?
+2. **KI-Integration**: Soll die KI direkt auf die Dateien schreiben oder ausschließlich über die API?
+3. **Deployment**: Lokale Entwicklung oder gehosteter Server (Cloud)?
+4. **Authentifizierung**: Einfache Session-basierte Authentifizierung oder Benutzerkonten?
+5. **Conflict Resolution**: Wie werden gleichzeitige Änderungen an denselben Nodes behandelt?
+6. **Datei-Änderungserkennung**: Soll CanvasTool Änderungen an lokal geladenen Dateien erkennen (Polling vs. File System Access API)?
+
+#### Potenzielle Erweiterungen
+- Versionierung mit automatischen Snapshots
+- Canvas-Freigabe über Links (read-only oder editierbar)
+- Kommentar-System für Nodes
+- Canvas-Vergleich (Diff zwischen Versionen)
+- Export als verschiedene Formate (Markdown, Mermaid, PlantUML)
+- Plugin-System für Server-Erweiterungen
+
 ## Priorisierungskriterien
 
 1. **User Value**: Direkter Nutzen für Benutzer
@@ -209,3 +290,7 @@
 ---
 
 **Hinweis**: Diese Roadmap ist dynamisch und kann je nach Feedback und Prioritäten angepasst werden. Features können zwischen Phasen verschoben werden.
+
+---
+
+*Architekturvorschlag für Server/Kollaboration/KI dokumentiert am 16. April 2026*
