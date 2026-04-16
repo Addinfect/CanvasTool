@@ -143,6 +143,8 @@ const Canvas = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [editingNodeId, editValue])
 
+
+
   // Update input position when editing node changes
   useEffect(() => {
     if (!editingNodeId) return
@@ -198,6 +200,11 @@ const Canvas = () => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
 
   const handleMouseDown = (e: any) => {
+    // Save edit if clicking stage while editing
+    if (editingNodeId && e.target === e.target.getStage()) {
+      handleSaveEdit()
+    }
+    
     // Only pan when clicking background (stage)
     if (e.target === e.target.getStage()) {
       // Allow left (0) or middle (1) mouse button for panning
@@ -643,47 +650,34 @@ const Canvas = () => {
         </Layer>
       </Stage>
       {editingNodeId && (
-        <div 
+        <input
+          ref={inputRef}
+          type="text"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSaveEdit}
           style={{
             position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            pointerEvents: 'none',
-            zIndex: 10
+            left: inputStyle.left + 'px',
+            top: inputStyle.top + 'px',
+            width: inputStyle.width + 'px',
+            height: inputStyle.height + 'px',
+            fontSize: 14 * zoom + 'px',
+            fontFamily: 'Inter, sans-serif',
+            textAlign: 'left',
+            lineHeight: `${Math.max(16, inputStyle.height - 10)}px`,
+            background: inputStyle.backgroundColor,
+            color: '#ffffff',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            borderRadius: '4px',
+            outline: 'none',
+            padding: '5px',
+            boxSizing: 'border-box',
+            pointerEvents: 'auto',
+            zIndex: 100
           }}
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={handleSaveEdit}
-            style={{
-              position: 'absolute',
-              left: inputStyle.left + 'px',
-              top: inputStyle.top + 'px',
-              width: inputStyle.width + 'px',
-              height: inputStyle.height + 'px',
-              fontSize: 14 * zoom + 'px',
-              fontFamily: 'Inter, sans-serif',
-              textAlign: 'left',
-              lineHeight: `${Math.max(16, inputStyle.height - 10)}px`,
-              background: inputStyle.backgroundColor,
-              color: '#ffffff',
-              border: '1px solid rgba(255, 255, 255, 0.3)',
-              borderRadius: '4px',
-              outline: 'none',
-              padding: '5px',
-              boxSizing: 'border-box',
-              pointerEvents: 'auto',
-              zIndex: 11
-            }}
-          />
-        </div>
-      )}
-    </div>
+        />
+      )}    </div>
   )
 }
 
