@@ -24,6 +24,10 @@ const Canvas = () => {
   const [editValue, setEditValue] = useState('')
   const [inputStyle, setInputStyle] = useState({ left: 0, top: 0, width: 200, height: 30, backgroundColor: '#ff9900' })
   const inputRef = useRef<HTMLInputElement>(null)
+  const [resizingNodeId, setResizingNodeId] = useState<string | null>(null)
+  const [resizeHandle, setResizeHandle] = useState<'tl' | 'tr' | 'bl' | 'br' | null>(null)
+  const [originalNodeSize, setOriginalNodeSize] = useState({ width: 0, height: 0, x: 0, y: 0 })
+  const [startMousePos, setStartMousePos] = useState({ x: 0, y: 0 })
 
   const {
     nodes,
@@ -38,8 +42,9 @@ const Canvas = () => {
     setZoom,
     setPan,
   } = useCanvasStore()
-  console.log('Canvas nodes:', nodes.length, nodes)
-  console.log('Pan:', pan.x, pan.y, 'Zoom:', zoom)
+  // Debug logs commented out
+  // console.log('Canvas nodes:', nodes.length, nodes)
+  // console.log('Pan:', pan.x, pan.y, 'Zoom:', zoom)
   // Inline editing handlers
   const handleNodeDoubleClick = (nodeId: string) => {
     setEditingNodeId(nodeId)
@@ -200,6 +205,9 @@ const Canvas = () => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
 
   const handleMouseDown = (e: any) => {
+    // Don't pan while resizing
+    if (resizingNodeId) return
+    
     // Save edit if clicking stage while editing
     if (editingNodeId && e.target === e.target.getStage()) {
       handleSaveEdit()
@@ -287,7 +295,7 @@ const Canvas = () => {
 
   // Node rendering
   const renderNode = (node: CanvasNode) => {
-    console.log('Rendering node:', node.id, node.type, node.x, node.y)
+    // console.log('Rendering node:', node.id, node.type, node.x, node.y)
     const isSelected = selectedNodeIds.includes(node.id)
     const fill = node.color || '#ff9900'
     const stroke = isSelected ? '#4a9eff' : '#666'
@@ -351,6 +359,8 @@ const Canvas = () => {
         )}
         {/* Connection handles */}
         {renderConnectionHandles(node, isSelected || node.id === hoveredNodeId)}
+        {/* Resize handles */}
+        {renderResizeHandles(node, isSelected)}
       </Group>
     )
   }
@@ -401,6 +411,72 @@ const Canvas = () => {
         }}
         onMouseLeave={(e) => {
           if (!draggingEdge) {
+            e.target.getStage().container().style.cursor = 'grab'
+          }
+        }}
+      />
+    ))
+  }
+
+  const renderResizeHandles = (node: CanvasNode, showHandles: boolean) => {
+    if (!showHandles) return null
+    
+    const handleSize = 8
+    const positions = [
+      { handle: 'tl' as const, x: 0, y: 0 },
+      { handle: 'tr' as const, x: node.width, y: 0 },
+      { handle: 'bl' as const, x: 0, y: node.height },
+      { handle: 'br' as const, x: node.width, y: node.height }
+    ]
+    
+    return positions.map((pos, index) => (
+      <Circle
+        key={index}
+        x={pos.x}
+        y={pos.y}
+        radius={handleSize}
+        fill="#ffffff"
+        stroke="#4a9eff"
+        strokeWidth={1.5}
+        onMouseDown={(e) => {
+          e.cancelBubble = true
+          const stage = e.target.getStage()
+          const pointerPos = stage.getPointerPosition()
+          if (!pointerPos) return
+          
+          const canvasX = (pointerPos.x - pan.x) / zoom
+          const canvasY = (pointerPos.y - pan.y) / zoom
+          
+          setResizingNodeId(node.id)
+          setResizeHandle(pos.handle)
+          setOriginalNodeSize({
+            width: node.width,
+            height: node.height,
+            x: node.x,
+            y: node.y
+          })
+          setStartMousePos({ x: canvasX, y: canvasY })
+          
+          // Change cursor based on handle
+          const cursorMap = {
+            'tl': 'nwse-resize',
+            'tr': 'nesw-resize',
+            'bl': 'nesw-resize',
+            'br': 'nwse-resize'
+          }
+          stage.container().style.cursor = cursorMap[pos.handle]
+        }}
+        onMouseEnter={(e) => {
+          const cursorMap = {
+            'tl': 'nwse-resize',
+            'tr': 'nesw-resize',
+            'bl': 'nesw-resize',
+            'br': 'nwse-resize'
+          }
+          e.target.getStage().container().style.cursor = cursorMap[pos.handle]
+        }}
+        onMouseLeave={(e) => {
+          if (!resizingNodeId && !draggingEdge) {
             e.target.getStage().container().style.cursor = 'grab'
           }
         }}
@@ -495,6 +571,85 @@ const Canvas = () => {
       }
     }
   }, [draggingEdge, zoom, pan, nodes, addEdge])
+
+  // Handle node resizing
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizingNodeId || !resizeHandle || !stageRef.current) return
+      
+      const stage = stageRef.current
+      const pointerPos = stage.getPointerPosition()
+      if (!pointerPos) return
+      
+      const canvasX = (pointerPos.x - pan.x) / zoom
+      const canvasY = (pointerPos.y - pan.y) / zoom
+      
+      const deltaX = canvasX - startMousePos.x
+      const deltaY = canvasY - startMousePos.y
+      
+      const node = nodes.find(n => n.id === resizingNodeId)
+      if (!node) return
+      
+      let newWidth = originalNodeSize.width
+      let newHeight = originalNodeSize.height
+      let newX = originalNodeSize.x
+      let newY = originalNodeSize.y
+      
+      // Calculate new dimensions based on handle
+      switch (resizeHandle) {
+        case 'tl': // top-left
+          newWidth = Math.max(50, originalNodeSize.width - deltaX)
+          newHeight = Math.max(50, originalNodeSize.height - deltaY)
+          newX = originalNodeSize.x + (originalNodeSize.width - newWidth)
+          newY = originalNodeSize.y + (originalNodeSize.height - newHeight)
+          break
+        case 'tr': // top-right
+          newWidth = Math.max(50, originalNodeSize.width + deltaX)
+          newHeight = Math.max(50, originalNodeSize.height - deltaY)
+          newY = originalNodeSize.y + (originalNodeSize.height - newHeight)
+          break
+        case 'bl': // bottom-left
+          newWidth = Math.max(50, originalNodeSize.width - deltaX)
+          newHeight = Math.max(50, originalNodeSize.height + deltaY)
+          newX = originalNodeSize.x + (originalNodeSize.width - newWidth)
+          break
+        case 'br': // bottom-right
+          newWidth = Math.max(50, originalNodeSize.width + deltaX)
+          newHeight = Math.max(50, originalNodeSize.height + deltaY)
+          break
+      }
+      
+      // Update node
+      updateNode(resizingNodeId, { 
+        width: newWidth, 
+        height: newHeight,
+        x: newX,
+        y: newY
+      })
+    }
+    
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!resizingNodeId) return
+      
+      // Reset resizing state
+      setResizingNodeId(null)
+      setResizeHandle(null)
+      
+      // Restore cursor
+      if (stageRef.current) {
+        stageRef.current.container().style.cursor = 'grab'
+      }
+    }
+    
+    if (resizingNodeId) {
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [resizingNodeId, resizeHandle, zoom, pan, nodes, updateNode, originalNodeSize, startMousePos])
 
   // Generate grid lines for visible area
   const generateGridLines = () => {
@@ -634,7 +789,6 @@ const Canvas = () => {
           )}
 
           {/* Nodes */}
-          {console.log('Rendering nodes count:', nodes.length)}
           {nodes.map(renderNode)}
 
           {/* Wheel menu */}
