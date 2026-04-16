@@ -1,5 +1,6 @@
 import { Stage, Layer, Rect, Text, Group, Circle, Line } from 'react-konva'
 import { useRef, useEffect, useState } from 'react'
+
 import { useCanvasStore } from '../store/useCanvasStore'
 import { NodeType, CanvasNode, CanvasEdge } from '../types'
 import WheelMenu from './WheelMenu'
@@ -19,6 +20,10 @@ const Canvas = () => {
     currentY: number
   } | null>(null)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [inputStyle, setInputStyle] = useState({ left: 0, top: 0, width: 200, height: 30, backgroundColor: '#ff9900' })
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const {
     nodes,
@@ -33,6 +38,65 @@ const Canvas = () => {
     setZoom,
     setPan,
   } = useCanvasStore()
+  console.log('Canvas nodes:', nodes.length, nodes)
+  console.log('Pan:', pan.x, pan.y, 'Zoom:', zoom)
+  // Inline editing handlers
+  const handleNodeDoubleClick = (nodeId: string) => {
+    setEditingNodeId(nodeId)
+
+    const node = nodes.find(n => n.id === nodeId)
+    if (!node) return
+
+    console.log('Starting edit for node:', nodeId, node.type)
+    
+    // Set initial value based on node type
+    switch (node.type) {
+      case 'text':
+        setEditValue(node.text || '')
+        break
+      case 'link':
+        setEditValue(node.url || '')
+        break
+      case 'file':
+        setEditValue(node.file || '')
+        break
+      case 'group':
+        setEditValue(node.label || '')
+        break
+    }
+  }
+
+  const handleSaveEdit = () => {
+    if (!editingNodeId) return
+
+    const node = nodes.find(n => n.id === editingNodeId)
+    if (!node) return
+
+    const updates: any = {}
+    switch (node.type) {
+      case 'text':
+        updates.text = editValue
+        break
+      case 'link':
+        updates.url = editValue
+        break
+      case 'file':
+        updates.file = editValue
+        break
+      case 'group':
+        updates.label = editValue
+        break
+    }
+
+    updateNode(editingNodeId, updates)
+    setEditingNodeId(null)
+    setEditValue('')
+  }
+
+  const handleCancelEdit = () => {
+    setEditingNodeId(null)
+    setEditValue('')
+  }
 
   useEffect(() => {
     console.log('Canvas mounted, nodes:', nodes.length, 'edges:', edges.length)
@@ -53,6 +117,57 @@ const Canvas = () => {
     window.addEventListener('resize', updateSize)
     return () => window.removeEventListener('resize', updateSize)
   }, [])
+
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (editingNodeId && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editingNodeId])
+
+  // Handle Enter/Escape keys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!editingNodeId) return
+
+      if (e.key === 'Enter') {
+        handleSaveEdit()
+      } else if (e.key === 'Escape') {
+        handleCancelEdit()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [editingNodeId, editValue])
+
+  // Update input position when editing node changes
+  useEffect(() => {
+    if (!editingNodeId) return
+
+    const node = nodes.find(n => n.id === editingNodeId)
+    if (!node) return
+
+    // Convert canvas coordinates to screen coordinates
+    const screenX = node.x * zoom + pan.x
+    const screenY = node.y * zoom + pan.y
+
+    // Input should be positioned over the text area (10px padding)
+    const inputX = screenX + 10 * zoom
+    const inputY = screenY + 10 * zoom
+    const inputWidth = Math.max(100, (node.width - 20) * zoom)
+    const inputHeight = Math.max(30, (node.height - 20) * zoom)
+
+    setInputStyle({
+      left: inputX,
+      top: inputY,
+      width: inputWidth,
+      height: inputHeight,
+      backgroundColor: node.color || '#ff9900'
+    })
+  }, [editingNodeId, nodes, zoom, pan])
 
   // Pan and zoom handlers
   const handleWheel = (e: any) => {
@@ -165,6 +280,7 @@ const Canvas = () => {
 
   // Node rendering
   const renderNode = (node: CanvasNode) => {
+    console.log('Rendering node:', node.id, node.type, node.x, node.y)
     const isSelected = selectedNodeIds.includes(node.id)
     const fill = node.color || '#ff9900'
     const stroke = isSelected ? '#4a9eff' : '#666'
@@ -198,7 +314,7 @@ const Canvas = () => {
         onDblClick={(e) => {
           e.cancelBubble = true
           console.log('Node double-click:', node.id)
-          // TODO: Open edit dialog
+          handleNodeDoubleClick(node.id)
         }}
         onMouseEnter={() => setHoveredNodeId(node.id)}
         onMouseLeave={() => setHoveredNodeId(null)}
@@ -211,19 +327,21 @@ const Canvas = () => {
           strokeWidth={strokeWidth}
           cornerRadius={4}
         />
-        <Text
-          text={node.text || node.url || node.file || node.label || node.type}
-          width={node.width - 20}
-          height={node.height - 20}
-          x={10}
-          y={10}
-          fill="#ffffff"
-          fontSize={14}
-          fontFamily="Inter, sans-serif"
-          align="left"
-          verticalAlign="top"
-          padding={5}
-        />
+        {editingNodeId !== node.id && (
+          <Text
+            text={node.text || node.url || node.file || node.label || node.type}
+            width={node.width - 20}
+            height={node.height - 20}
+            x={10}
+            y={10}
+            fill="#ffffff"
+            fontSize={14}
+            fontFamily="Inter, sans-serif"
+            align="left"
+            verticalAlign="top"
+            padding={5}
+          />
+        )}
         {/* Connection handles */}
         {renderConnectionHandles(node, isSelected || node.id === hoveredNodeId)}
       </Group>
@@ -411,7 +529,7 @@ const Canvas = () => {
   }
 
   // Debug overlay
-  const debugInfo = `Stage: ${Math.round(stageSize.width)}x${Math.round(stageSize.height)} Zoom: ${zoom.toFixed(2)} Pan: ${Math.round(pan.x)},${Math.round(pan.y)}`
+  const debugInfo = `Stage: ${Math.round(stageSize.width)}x${Math.round(stageSize.height)} Zoom: ${zoom.toFixed(2)} Pan: ${Math.round(pan.x)},${Math.round(pan.y)} Nodes: ${nodes.length} Edges: ${edges.length}`
 
   return (
     <div className="canvas-container" ref={containerRef}>
@@ -456,7 +574,7 @@ const Canvas = () => {
             y={50}
             width={100}
             height={60}
-            fill="#ff0000"
+            fill="#00ff00"
             stroke="#ffffff"
             strokeWidth={2}
             listening={false}
@@ -509,6 +627,7 @@ const Canvas = () => {
           )}
 
           {/* Nodes */}
+          {console.log('Rendering nodes count:', nodes.length)}
           {nodes.map(renderNode)}
 
           {/* Wheel menu */}
@@ -523,6 +642,47 @@ const Canvas = () => {
           )}
         </Layer>
       </Stage>
+      {editingNodeId && (
+        <div 
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            zIndex: 10
+          }}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={handleSaveEdit}
+            style={{
+              position: 'absolute',
+              left: inputStyle.left + 'px',
+              top: inputStyle.top + 'px',
+              width: inputStyle.width + 'px',
+              height: inputStyle.height + 'px',
+              fontSize: 14 * zoom + 'px',
+              fontFamily: 'Inter, sans-serif',
+              textAlign: 'left',
+              lineHeight: `${Math.max(16, inputStyle.height - 10)}px`,
+              background: inputStyle.backgroundColor,
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              borderRadius: '4px',
+              outline: 'none',
+              padding: '5px',
+              boxSizing: 'border-box',
+              pointerEvents: 'auto',
+              zIndex: 11
+            }}
+          />
+        </div>
+      )}
     </div>
   )
 }

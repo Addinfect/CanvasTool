@@ -11,6 +11,7 @@ function App() {
 
   useEffect(() => {
     // Load sample data on mount
+    console.log('App: loading sample canvas', sampleCanvas.nodes.length, 'nodes')
     loadCanvas(sampleCanvas)
   }, [loadCanvas])
 
