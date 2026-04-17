@@ -4,6 +4,7 @@ import { useRef, useEffect, useState } from 'react'
 import { useCanvasStore } from '../store/useCanvasStore'
 import { NodeType, CanvasNode, CanvasEdge } from '../types'
 import WheelMenu from './WheelMenu'
+import NodeContextMenu from './ContextMenu/NodeContextMenu'
 import './Canvas.css'
 
 const Canvas = () => {
@@ -28,6 +29,7 @@ const Canvas = () => {
   const [resizeHandle, setResizeHandle] = useState<'tl' | 'tr' | 'bl' | 'br' | null>(null)
   const [originalNodeSize, setOriginalNodeSize] = useState({ width: 0, height: 0, x: 0, y: 0 })
   const [startMousePos, setStartMousePos] = useState({ x: 0, y: 0 })
+  const [contextMenu, setContextMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null)
 
   const {
     nodes,
@@ -338,6 +340,13 @@ const Canvas = () => {
           console.log('Node double-click:', node.id)
           handleNodeDoubleClick(node.id)
         }}
+        onContextMenu={(e) => {
+          e.evt.preventDefault()
+          const stage = e.target.getStage()
+          const pointerPos = stage.getPointerPosition()
+          if (!pointerPos) return
+          setContextMenu({ nodeId: node.id, x: pointerPos.x, y: pointerPos.y })
+        }}
         onMouseEnter={() => setHoveredNodeId(node.id)}
         onMouseLeave={() => setHoveredNodeId(null)}
       >
@@ -357,7 +366,7 @@ const Canvas = () => {
             x={10}
             y={10}
             fill="#ffffff"
-            fontSize={14}
+            fontSize={node.fontSize || 14}
             fontFamily="Inter, sans-serif"
             align="left"
             verticalAlign="top"
@@ -368,6 +377,8 @@ const Canvas = () => {
         {renderConnectionHandles(node, isSelected || node.id === hoveredNodeId)}
         {/* Resize handles */}
         {renderResizeHandles(node, isSelected)}
+        {/* Font size buttons (for text nodes) */}
+        {renderFontSizeButtons(node, isSelected)}
       </Group>
     )
   }
@@ -489,6 +500,84 @@ const Canvas = () => {
         }}
       />
     ))
+  }
+
+  const renderFontSizeButtons = (node: CanvasNode, showButtons: boolean) => {
+    if (!showButtons || node.type !== 'text') return null
+
+    const buttonSize = 16
+    const buttonSpacing = 4
+    const xOffset = node.width - buttonSize * 2 - buttonSpacing - 4
+    const yOffset = 4
+
+    return (
+      <Group>
+        {/* Increase font size button */}
+        <Circle
+          x={xOffset + buttonSize / 2}
+          y={yOffset + buttonSize / 2}
+          radius={buttonSize / 2}
+          fill="#4a9eff"
+          stroke="white"
+          strokeWidth={1}
+          onMouseDown={(e) => {
+            e.cancelBubble = true
+            const currentSize = node.fontSize || 14
+            updateNode(node.id, { fontSize: Math.min(32, currentSize + 2) })
+          }}
+          onMouseEnter={(e) => {
+            e.target.getStage().container().style.cursor = 'pointer'
+          }}
+          onMouseLeave={(e) => {
+            e.target.getStage().container().style.cursor = 'grab'
+          }}
+        />
+        <Text
+          x={xOffset + buttonSize / 2}
+          y={yOffset + buttonSize / 2}
+          text="A↑"
+          fontSize={10}
+          fontFamily="Inter, sans-serif"
+          fill="white"
+          align="center"
+          verticalAlign="middle"
+          offsetX={6}
+          offsetY={5}
+        />
+        {/* Decrease font size button */}
+        <Circle
+          x={xOffset + buttonSize + buttonSpacing + buttonSize / 2}
+          y={yOffset + buttonSize / 2}
+          radius={buttonSize / 2}
+          fill="#4a9eff"
+          stroke="white"
+          strokeWidth={1}
+          onMouseDown={(e) => {
+            e.cancelBubble = true
+            const currentSize = node.fontSize || 14
+            updateNode(node.id, { fontSize: Math.max(8, currentSize - 2) })
+          }}
+          onMouseEnter={(e) => {
+            e.target.getStage().container().style.cursor = 'pointer'
+          }}
+          onMouseLeave={(e) => {
+            e.target.getStage().container().style.cursor = 'grab'
+          }}
+        />
+        <Text
+          x={xOffset + buttonSize + buttonSpacing + buttonSize / 2}
+          y={yOffset + buttonSize / 2}
+          text="A↓"
+          fontSize={10}
+          fontFamily="Inter, sans-serif"
+          fill="white"
+          align="center"
+          verticalAlign="middle"
+          offsetX={6}
+          offsetY={5}
+        />
+      </Group>
+    )
   }
 
   // Edge rendering
@@ -810,6 +899,13 @@ const Canvas = () => {
           )}
         </Layer>
       </Stage>
+      {contextMenu && (
+        <NodeContextMenu
+          nodeId={contextMenu.nodeId}
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
       {editingNodeId && (
         <input
           ref={inputRef}

@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react'
 import Canvas from './components/Canvas'
 import FileMenu from './components/FileMenu'
-import PropertiesPanel from './components/PropertiesPanel'
 import { useCanvasStore } from './store/useCanvasStore'
+import MiniMap from './components/MiniMap/MiniMap'
 import { sampleCanvas } from './utils/sampleData'
 import './App.css'
 
 function App() {
-  const { loadFromLocalStorage, loadCanvas, autoSaveEnabled, nodes, edges, pan, zoom, gridSize, gridVisible, snapToGrid } = useCanvasStore()
+  const { loadFromLocalStorage, loadCanvas, autoSaveEnabled, nodes, edges, pan, zoom, gridSize, gridVisible, snapToGrid, copySelectedNodes, pasteNodes, undo, redo } = useCanvasStore()
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Load canvas on mount
@@ -45,6 +45,30 @@ function App() {
     }
   }, [nodes, edges, pan, zoom, gridSize, gridVisible, snapToGrid, autoSaveEnabled])
 
+  // Undo/Redo keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'z' && !e.shiftKey) {
+          e.preventDefault()
+          undo()
+        } else if ((e.key === 'y') || (e.key === 'Z' && e.shiftKey)) {
+          e.preventDefault()
+          redo()
+        } else if (e.key === 'c') {
+          e.preventDefault()
+          copySelectedNodes()
+        } else if (e.key === 'v') {
+          e.preventDefault()
+          pasteNodes()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [undo, redo, copySelectedNodes, pasteNodes])
+
   return (
     <div className="app">
       <header className="app-header">
@@ -62,8 +86,8 @@ function App() {
       </header>
       <div className="app-content">
         <Canvas />
-        <PropertiesPanel />
       </div>
+      <MiniMap />
     </div>
   )
 }

@@ -8,15 +8,23 @@ export interface CanvasNode {
   width: number
   height: number
   text?: string        // For text nodes
+  title?: string       // Display name for referencing (optional)
   file?: string        // For file nodes
   url?: string         // For link nodes
   label?: string       // For group nodes
   canvasId?: string    // For canvas nodes
   color?: string       // Custom styling
+  fontSize?: number    // For text nodes
   tags?: string[]      // Extended metadata
   aiMetadata?: {       // AI-generated data
     summary?: string
     embedding?: number[]
+  }
+  previewData?: {        // For link nodes: OpenGraph preview data
+    title?: string
+    description?: string
+    image?: string
+    siteName?: string
   }
 }
 
@@ -29,6 +37,7 @@ export interface CanvasEdge {
   label?: string
   style?: 'solid' | 'dashed' | 'dotted'
   color?: string
+  smartConnect?: boolean
 }
 
 export interface CanvasFile {
@@ -78,4 +87,6 @@ export interface CanvasState {
   connectionStart: { nodeId: string; side: 'top' | 'right' | 'bottom' | 'left'; x: number; y: number } | null
   connectionTempEnd: { x: number; y: number } | null
   autoSaveEnabled?: boolean
+  __history?: CanvasState[]
+  __historyIndex?: number
 }

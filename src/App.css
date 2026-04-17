@@ -38,11 +38,7 @@
   overflow: hidden;
 }
 
-.app-content > .properties-panel {
-  flex: 0 0 300px;
-  background: #252525;
-  border-left: 1px solid #444;
-}
+
 
 /* File Menu Styles */
 .file-menu {

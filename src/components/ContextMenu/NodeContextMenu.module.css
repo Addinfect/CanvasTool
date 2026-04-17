@@ -1,0 +1,79 @@
+.contextMenu {
+  position: absolute;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  padding: 8px;
+  min-width: 180px;
+  z-index: 1000;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  user-select: none;
+}
+
+.menuSection {
+  margin-bottom: 8px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 6px;
+  padding-left: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.colorGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.colorButton {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.colorButton:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+.divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 8px 0;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.1s;
+}
+
+.menuItem:hover {
+  background-color: #f3f4f6;
+}
+
+.menuIcon {
+  margin-right: 10px;
+  font-size: 16px;
+  opacity: 0.8;
+}
