@@ -77,3 +77,48 @@
   font-size: 16px;
   opacity: 0.8;
 }
+
+.menuItem:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.menuItem:disabled:hover {
+  background-color: transparent;
+}
+
+.buttonGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.buttonRow {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.smallButton {
+  padding: 6px 4px;
+  border: 1px solid #d1d5db;
+  background-color: #f9fafb;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #374151;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.1s;
+}
+
+.smallButton:hover:not(:disabled) {
+  background-color: #e5e7eb;
+}
+
+.smallButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background-color: #f3f4f6;
+}

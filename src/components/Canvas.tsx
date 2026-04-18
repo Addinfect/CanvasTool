@@ -29,7 +29,7 @@ const Canvas = () => {
   const [resizeHandle, setResizeHandle] = useState<'tl' | 'tr' | 'bl' | 'br' | null>(null)
   const [originalNodeSize, setOriginalNodeSize] = useState({ width: 0, height: 0, x: 0, y: 0 })
   const [startMousePos, setStartMousePos] = useState({ x: 0, y: 0 })
-  const [contextMenu, setContextMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ nodeId?: string; x: number; y: number } | null>(null)
 
   const {
     nodes,
@@ -47,6 +47,15 @@ const Canvas = () => {
     leaveCanvas,
     updateChildCanvas,
     currentCanvasParentNodeId,
+    alignSelectedNodes,
+    distributeSelectedNodes,
+    groupSelectedNodes,
+    ungroupSelectedNodes,
+    hiddenTags,
+    addHiddenTag,
+    removeHiddenTag,
+    setHiddenTags,
+    clearHiddenTags,
   } = useCanvasStore()
   // Debug logs commented out
   // console.log('Canvas nodes:', nodes.length, nodes)
@@ -249,6 +258,11 @@ const Canvas = () => {
       }
     }
 
+    // Close context menu when clicking stage background
+    if (e.target === e.target.getStage() && e.evt.button === 0) {
+      setContextMenu(null)
+    }
+
     // Only pan when clicking background (stage)
     if (e.target === e.target.getStage()) {
       // Allow left (0) or middle (1) mouse button for panning
@@ -271,6 +285,16 @@ const Canvas = () => {
 
   const handleMouseUp = () => {
     setIsDragging(false)
+  }
+
+  const handleStageContextMenu = (e: any) => {
+    e.evt.preventDefault()
+    const stage = e.target.getStage()
+    const pointerPos = stage.getPointerPosition()
+    if (!pointerPos) return
+    
+    // Open context menu for canvas background (no node selected)
+    setContextMenu({ nodeId: undefined, x: pointerPos.x, y: pointerPos.y })
   }
 
   // Double-click to show wheel menu
@@ -329,6 +353,12 @@ const Canvas = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [wheelMenu])
 
+  // Check if node should be hidden based on tags
+  const isNodeHidden = (node: CanvasNode): boolean => {
+    if (!node.tags || node.tags.length === 0) return false
+    return node.tags.some(tag => hiddenTags.includes(tag))
+  }
+
   // Node rendering
   const renderNode = (node: CanvasNode) => {
     // If this canvas node is the one we're currently inside, don't render it
@@ -339,10 +369,23 @@ const Canvas = () => {
     if (node.type === 'canvas') {
       console.log('Rendering canvas node:', node.id, node.title, 'at', node.x, node.y, 'in current canvas?', currentCanvasParentNodeId === node.id, 'currentCanvasParentNodeId:', currentCanvasParentNodeId, 'componentId:');
     }
+    const isHidden = isNodeHidden(node)
     const isSelected = selectedNodeIds.includes(node.id)
-    const fill = node.color || '#ff9900'
-    const stroke = isSelected ? '#4a9eff' : '#666'
-    const strokeWidth = isSelected ? 2 : 1
+    const fill = isHidden ? '#888888' : (node.color || '#ff9900')
+    const stroke = isHidden ? '#555555' : (isSelected ? '#4a9eff' : '#666')
+    const strokeWidth = isHidden ? 1 : (isSelected ? 2 : 1)
+    const opacity = isHidden ? 0.3 : 1
+    
+    // Calculate absolute position based on parent group
+    let absoluteX = node.x
+    let absoluteY = node.y
+    if (node.parentId) {
+      const parentNode = nodes.find(n => n.id === node.parentId)
+      if (parentNode) {
+        absoluteX += parentNode.x
+        absoluteY += parentNode.y
+      }
+    }
     
     // Determine display text based on node type
     let displayText = node.text || node.url || node.file || node.label || node.type
@@ -354,13 +397,28 @@ const Canvas = () => {
     return (
       <Group
         key={node.id}
-        x={node.x}
-        y={node.y}
-        draggable
+        x={absoluteX}
+        y={absoluteY}
+        draggable={!isHidden}
+        listening={!isHidden}
+        opacity={opacity}
         onDragMove={(e) => {
           const newX = e.target.x()
           const newY = e.target.y()
-          updateNode(node.id, { x: newX, y: newY })
+          
+          if (node.parentId) {
+            // This is a child node within a group
+            // Calculate relative position to parent group
+            const parentNode = nodes.find(n => n.id === node.parentId)
+            if (parentNode) {
+              const relativeX = newX - parentNode.x
+              const relativeY = newY - parentNode.y
+              updateNode(node.id, { x: relativeX, y: relativeY })
+            }
+          } else {
+            // Regular node or group node
+            updateNode(node.id, { x: newX, y: newY })
+          }
         }}
         onClick={(e) => {
           if (e.evt.ctrlKey || e.evt.metaKey) {
@@ -417,13 +475,47 @@ const Canvas = () => {
         {/* Canvas preview (for canvas nodes) */}
         {renderCanvasPreview(node)}
         {/* Connection handles */}
-        {renderConnectionHandles(node, isSelected || node.id === hoveredNodeId)}
+        {!isHidden && renderConnectionHandles(node, isSelected || node.id === hoveredNodeId)}
         {/* Resize handles */}
-        {renderResizeHandles(node, isSelected)}
+        {!isHidden && renderResizeHandles(node, isSelected)}
         {/* Font size buttons (for text nodes) */}
-        {renderFontSizeButtons(node, isSelected)}
+        {!isHidden && renderFontSizeButtons(node, isSelected)}
       </Group>
     )
+  }
+
+  // Helper to get absolute position of a node (accounting for parent groups)
+  const getAbsolutePosition = (node: CanvasNode) => {
+    let x = node.x
+    let y = node.y
+    if (node.parentId) {
+      const parentNode = nodes.find(n => n.id === node.parentId)
+      if (parentNode) {
+        x += parentNode.x
+        y += parentNode.y
+      }
+    }
+    return { x, y }
+  }
+
+  const getClosestSide = (node: CanvasNode, pointX: number, pointY: number): 'top' | 'right' | 'bottom' | 'left' => {
+    const absPos = getAbsolutePosition(node)
+    const left = absPos.x
+    const right = left + node.width
+    const top = absPos.y
+    const bottom = top + node.height
+    
+    const distToLeft = Math.abs(pointX - left)
+    const distToRight = Math.abs(pointX - right)
+    const distToTop = Math.abs(pointY - top)
+    const distToBottom = Math.abs(pointY - bottom)
+    
+    const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom)
+    
+    if (minDist === distToLeft) return 'left'
+    if (minDist === distToRight) return 'right'
+    if (minDist === distToTop) return 'top'
+    return 'bottom'
   }
 
   const renderConnectionHandles = (node: CanvasNode, showHandles: boolean) => {
@@ -455,11 +547,16 @@ const Canvas = () => {
           const canvasX = (pointerPos.x - pan.x) / zoom
           const canvasY = (pointerPos.y - pan.y) / zoom
 
+          // Calculate absolute position of the connection handle
+          const absPos = getAbsolutePosition(node)
+          const handleX = absPos.x + pos.x
+          const handleY = absPos.y + pos.y
+
           setDraggingEdge({
             nodeId: node.id,
             side: pos.side,
-            startX: canvasX,
-            startY: canvasY,
+            startX: handleX,
+            startY: handleY,
             currentX: canvasX,
             currentY: canvasY
           })
@@ -700,13 +797,38 @@ const Canvas = () => {
     const toNode = nodes.find(n => n.id === edge.toNode)
     
     if (!fromNode || !toNode) return null
-
-    // Calculate connection points (center for now)
-    const fromX = fromNode.x + fromNode.width / 2
-    const fromY = fromNode.y + fromNode.height / 2
-    const toX = toNode.x + toNode.width / 2
-    const toY = toNode.y + toNode.height / 2
-
+    
+    const fromAbs = getAbsolutePosition(fromNode)
+    const toAbs = getAbsolutePosition(toNode)
+    // Helper to get connection point based on side
+    const getConnectionPoint = (node: CanvasNode, absPos: { x: number, y: number }, side?: 'top' | 'right' | 'bottom' | 'left') => {
+      if (!side) {
+        // Default to center
+        return {
+          x: absPos.x + node.width / 2,
+          y: absPos.y + node.height / 2
+        }
+      }
+      
+      switch (side) {
+        case 'top':
+          return { x: absPos.x + node.width / 2, y: absPos.y }
+        case 'right':
+          return { x: absPos.x + node.width, y: absPos.y + node.height / 2 }
+        case 'bottom':
+          return { x: absPos.x + node.width / 2, y: absPos.y + node.height }
+        case 'left':
+          return { x: absPos.x, y: absPos.y + node.height / 2 }
+      }
+    }
+    
+    const fromPoint = getConnectionPoint(fromNode, fromAbs, edge.fromSide)
+    const toPoint = getConnectionPoint(toNode, toAbs, edge.toSide)
+    
+    const fromX = fromPoint.x
+    const fromY = fromPoint.y
+    const toX = toPoint.x
+    const toY = toPoint.y
     return (
       <Line
         key={edge.id}
@@ -747,10 +869,20 @@ const Canvas = () => {
       const canvasX = (pointerPos.x - pan.x) / zoom
       const canvasY = (pointerPos.y - pan.y) / zoom
 
-      // Find node under cursor
+      // Find node under cursor (using absolute positions for grouped nodes)
       const targetNode = nodes.find(node => {
-        return canvasX >= node.x && canvasX <= node.x + node.width &&
-               canvasY >= node.y && canvasY <= node.y + node.height &&
+        // Calculate absolute position
+        let nodeX = node.x
+        let nodeY = node.y
+        if (node.parentId) {
+          const parentNode = nodes.find(n => n.id === node.parentId)
+          if (parentNode) {
+            nodeX += parentNode.x
+            nodeY += parentNode.y
+          }
+        }
+        return canvasX >= nodeX && canvasX <= nodeX + node.width &&
+               canvasY >= nodeY && canvasY <= nodeY + node.height &&
                node.id !== draggingEdge.nodeId
       })
 
@@ -762,6 +894,7 @@ const Canvas = () => {
           fromNode: draggingEdge.nodeId,
           toNode: targetNode.id,
           fromSide: draggingEdge.side,
+          toSide: getClosestSide(targetNode, canvasX, canvasY),
           style: 'solid',
           color: '#666'
         }
@@ -918,6 +1051,7 @@ const Canvas = () => {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onDblClick={handleDoubleClick}
+        onContextMenu={handleStageContextMenu}
       >
         <Layer>
           {/* Full stage background */}

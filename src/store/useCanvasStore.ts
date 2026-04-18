@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import { CanvasState, CanvasNode, CanvasEdge, CanvasExportData } from '../types'
+import { CanvasState, CanvasNode, CanvasEdge, CanvasExportData, CanvasSnapshot } from '../types'
 import { importCanvas, exportCanvas, saveCanvasToLocalStorage, loadCanvasFromLocalStorage, isAutoSaveEnabled, setAutoSaveEnabled } from '../utils/canvasExport'
 
 // Helper function to generate a default title for a node
@@ -129,6 +129,18 @@ interface CanvasActions {
   enterCanvas: (nodeId: string) => void
   leaveCanvas: () => void
   updateChildCanvas: (nodeId: string, newCanvasData: CanvasExportData) => void
+  alignSelectedNodes: (alignment: 'left' | 'right' | 'top' | 'bottom' | 'centerX' | 'centerY') => void
+  distributeSelectedNodes: (direction: 'horizontal' | 'vertical') => void
+  groupSelectedNodes: () => void
+  ungroupSelectedNodes: () => void
+  addHiddenTag: (tag: string) => void
+  removeHiddenTag: (tag: string) => void
+  setHiddenTags: (tags: string[]) => void
+  clearHiddenTags: () => void
+  addSnapshot: (name: string) => void
+  loadSnapshot: (snapshotId: string) => void
+  deleteSnapshot: (snapshotId: string) => void
+  renameSnapshot: (snapshotId: string, newName: string) => void
 }
 
 const initialState: CanvasState = {
@@ -149,6 +161,8 @@ const initialState: CanvasState = {
   __isUndoingRedoing: false,
   canvasStack: [],
   currentCanvasParentNodeId: undefined,
+  hiddenTags: [],
+  snapshots: [],
 }
 
 // Helper to create a snapshot of state without history fields
@@ -167,6 +181,64 @@ function saveToHistory(state: CanvasState) {
   state.__historyIndex = state.__history.length - 1
 }
 
+// Helper to update group node bounds based on child nodes
+function updateGroupBounds(state: CanvasState, groupNodeId: string) {
+  const groupNode = state.nodes.find(n => n.id === groupNodeId)
+  if (!groupNode || groupNode.type !== 'group') return
+
+  const childNodes = state.nodes.filter(n => n.parentId === groupNodeId)
+  if (childNodes.length === 0) return
+
+  const padding = 10
+  
+  // Calculate current bounds of all child nodes (relative to group)
+  const minX = Math.min(...childNodes.map(n => n.x))
+  const maxX = Math.max(...childNodes.map(n => n.x + n.width))
+  const minY = Math.min(...childNodes.map(n => n.y))
+  const maxY = Math.max(...childNodes.map(n => n.y + n.height))
+  
+  // Calculate required size based on child bounds (with padding)
+  const requiredContentWidth = maxX - minX
+  const requiredContentHeight = maxY - minY
+  const requiredWidth = Math.max(100, requiredContentWidth + padding * 2)
+  const requiredHeight = Math.max(60, requiredContentHeight + padding * 2)
+  
+  // Group only grows, never shrinks
+  groupNode.width = Math.max(groupNode.width, requiredWidth)
+  groupNode.height = Math.max(groupNode.height, requiredHeight)
+  
+  // Now check if children are within padding after size adjustment
+  // If not, we need to shift the group (not the children)
+  const shiftX = minX < padding ? minX - padding : 0
+  const shiftY = minY < padding ? minY - padding : 0
+  
+  // Also check right/bottom bounds after potential shift
+  const effectiveMaxX = maxX - shiftX
+  const effectiveMaxY = maxY - shiftY
+  const currentWidth = groupNode.width
+  const currentHeight = groupNode.height
+  
+  // If children would still exceed right/bottom bounds after shift, expand group
+  if (effectiveMaxX > currentWidth - padding) {
+    groupNode.width = Math.max(groupNode.width, effectiveMaxX + padding)
+  }
+  if (effectiveMaxY > currentHeight - padding) {
+    groupNode.height = Math.max(groupNode.height, effectiveMaxY + padding)
+  }
+  
+  // Apply shift if needed
+  if (shiftX !== 0 || shiftY !== 0) {
+    // Move group to accommodate children
+    groupNode.x += shiftX
+    groupNode.y += shiftY
+    
+    // Adjust child relative positions to maintain their absolute positions
+    childNodes.forEach(child => {
+      child.x -= shiftX
+      child.y -= shiftY
+    })
+  }
+}
 export const useCanvasStore = create<CanvasState & CanvasActions>()(
   immer((set, get) => ({
     ...initialState,
@@ -214,6 +286,11 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
           if (!node.title || node.title.trim() === '') {
             node.title = generateDefaultTitle(node)
           }
+          
+          // Update parent group bounds if this node belongs to a group
+          if (node.parentId) {
+            updateGroupBounds(state, node.parentId)
+          }
         }
       }),
     updateEdge: (id, updates) =>
@@ -228,6 +305,13 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
     deleteNode: (id) =>
       set((state) => {
         saveToHistory(state)
+        // Clear parentId for any child nodes
+        state.nodes.forEach(node => {
+          if (node.parentId === id) {
+            node.parentId = undefined
+          }
+        })
+        // Remove the node
         state.nodes = state.nodes.filter((n) => n.id !== id)
         // Also delete connected edges
         state.edges = state.edges.filter(
@@ -578,6 +662,240 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
           node.childCanvasData = newCanvasData
         }
       }),
+
+    alignSelectedNodes: (alignment) =>
+      set((state) => {
+        saveToHistory(state)
+        const selectedNodes = state.nodes.filter(node => state.selectedNodeIds.includes(node.id))
+        if (selectedNodes.length < 2) return
+        
+        let referenceValue: number
+        if (alignment === 'left') {
+          referenceValue = Math.min(...selectedNodes.map(n => n.x))
+          selectedNodes.forEach(node => {
+            node.x = referenceValue
+          })
+        } else if (alignment === 'right') {
+          referenceValue = Math.max(...selectedNodes.map(n => n.x + n.width))
+          selectedNodes.forEach(node => {
+            node.x = referenceValue - node.width
+          })
+        } else if (alignment === 'top') {
+          referenceValue = Math.min(...selectedNodes.map(n => n.y))
+          selectedNodes.forEach(node => {
+            node.y = referenceValue
+          })
+        } else if (alignment === 'bottom') {
+          referenceValue = Math.max(...selectedNodes.map(n => n.y + n.height))
+          selectedNodes.forEach(node => {
+            node.y = referenceValue - node.height
+          })
+        } else if (alignment === 'centerX') {
+          const minX = Math.min(...selectedNodes.map(n => n.x))
+          const maxX = Math.max(...selectedNodes.map(n => n.x + n.width))
+          referenceValue = (minX + maxX) / 2
+          selectedNodes.forEach(node => {
+            node.x = referenceValue - node.width / 2
+          })
+        } else if (alignment === 'centerY') {
+          const minY = Math.min(...selectedNodes.map(n => n.y))
+          const maxY = Math.max(...selectedNodes.map(n => n.y + n.height))
+          referenceValue = (minY + maxY) / 2
+          selectedNodes.forEach(node => {
+            node.y = referenceValue - node.height / 2
+          })
+        }
+      }),
+
+    distributeSelectedNodes: (direction) =>
+      set((state) => {
+        saveToHistory(state)
+        const selectedNodes = state.nodes.filter(node => state.selectedNodeIds.includes(node.id))
+        if (selectedNodes.length < 3) return
+        
+        // Sort nodes by position
+        const sortedNodes = [...selectedNodes].sort((a, b) => 
+          direction === 'horizontal' ? a.x - b.x : a.y - b.y
+        )
+        
+        if (direction === 'horizontal') {
+          const totalWidth = sortedNodes.reduce((sum, node) => sum + node.width, 0)
+          const minX = Math.min(...sortedNodes.map(n => n.x))
+          const maxX = Math.max(...sortedNodes.map(n => n.x + n.width))
+          const availableSpace = maxX - minX - totalWidth
+          const gap = availableSpace / (sortedNodes.length - 1)
+          
+          let currentX = minX
+          sortedNodes.forEach(node => {
+            node.x = currentX
+            currentX += node.width + gap
+          })
+        } else {
+          const totalHeight = sortedNodes.reduce((sum, node) => sum + node.height, 0)
+          const minY = Math.min(...sortedNodes.map(n => n.y))
+          const maxY = Math.max(...sortedNodes.map(n => n.y + n.height))
+          const availableSpace = maxY - minY - totalHeight
+          const gap = availableSpace / (sortedNodes.length - 1)
+          
+          let currentY = minY
+          sortedNodes.forEach(node => {
+            node.y = currentY
+            currentY += node.height + gap
+          })
+        }
+      }),
+
+    groupSelectedNodes: () =>
+      set((state) => {
+        saveToHistory(state)
+        const selectedNodes = state.nodes.filter(node => state.selectedNodeIds.includes(node.id))
+        if (selectedNodes.length < 2) return
+        
+        // Calculate bounds of selected nodes
+        const minX = Math.min(...selectedNodes.map(n => n.x))
+        const maxX = Math.max(...selectedNodes.map(n => n.x + n.width))
+        const minY = Math.min(...selectedNodes.map(n => n.y))
+        const maxY = Math.max(...selectedNodes.map(n => n.y + n.height))
+        
+        // Create group node
+        const groupId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        const groupNode: CanvasNode = {
+          id: groupId,
+          type: 'group',
+          x: minX - 10,
+          y: minY - 10,
+          width: maxX - minX + 20,
+          height: maxY - minY + 20,
+          label: `Group (${selectedNodes.length} nodes)`,
+          color: 'rgba(59, 130, 246, 0.5)'
+        }
+        
+        // Add group to nodes
+        state.nodes.push(groupNode)
+        
+        // Move selected nodes to be children of group (store their original positions relative to group)
+        selectedNodes.forEach(node => {
+          // Store relative positions to group
+          node.x -= groupNode.x
+          node.y -= groupNode.y
+          // Set parent reference
+          node.parentId = groupId
+        })
+        
+        // Update group bounds based on child positions
+        updateGroupBounds(state, groupId);
+        
+        // Clear selection
+        state.selectedNodeIds = []
+      }),
+
+      addHiddenTag: (tag: string) =>
+        set((state) => {
+          saveToHistory(state)
+          if (!state.hiddenTags.includes(tag)) {
+            state.hiddenTags.push(tag)
+          }
+        }),
+
+      removeHiddenTag: (tag: string) =>
+        set((state) => {
+          saveToHistory(state)
+          state.hiddenTags = state.hiddenTags.filter(t => t !== tag)
+        }),
+
+      setHiddenTags: (tags: string[]) =>
+        set((state) => {
+          saveToHistory(state)
+          state.hiddenTags = tags
+        }),
+
+      clearHiddenTags: () =>
+        set((state) => {
+          saveToHistory(state)
+          state.hiddenTags = []
+        }),
+
+    ungroupSelectedNodes: () =>
+      set((state) => {
+        saveToHistory(state)
+        const selectedNodes = state.nodes.filter(node => state.selectedNodeIds.includes(node.id))
+        const groupNodes = selectedNodes.filter(node => node.type === 'group')
+        if (groupNodes.length === 0) return
+        
+        groupNodes.forEach(groupNode => {
+          // Find all child nodes of this group
+          const childNodes = state.nodes.filter(node => node.parentId === groupNode.id)
+          
+          // Restore absolute positions for child nodes
+          childNodes.forEach(child => {
+            child.x += groupNode.x
+            child.y += groupNode.y
+            child.parentId = undefined
+          })
+          
+          // Delete the group node
+          const index = state.nodes.findIndex(n => n.id === groupNode.id)
+          if (index !== -1) {
+            state.nodes.splice(index, 1)
+          }
+        })
+        
+        // Clear selection
+        state.selectedNodeIds = []
+      }),
+
+      addSnapshot: (name: string) =>
+        set((state) => {
+          saveToHistory(state);
+          const snapshot: CanvasSnapshot = {
+            id: `snapshot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name,
+            timestamp: new Date().toISOString(),
+            data: {
+              nodes: [...state.nodes],
+              edges: [...state.edges],
+              pan: { ...state.pan },
+              zoom: state.zoom,
+              gridSize: state.gridSize,
+              gridVisible: state.gridVisible,
+              snapToGrid: state.snapToGrid,
+              hiddenTags: [...state.hiddenTags],
+            },
+          };
+          state.snapshots.push(snapshot);
+        }),
+
+      loadSnapshot: (snapshotId: string) =>
+        set((state) => {
+          const snapshot = state.snapshots.find(s => s.id === snapshotId);
+          if (!snapshot) return;
+          saveToHistory(state);
+          state.nodes = [...snapshot.data.nodes];
+          state.edges = [...snapshot.data.edges];
+          state.pan = { ...snapshot.data.pan };
+          state.zoom = snapshot.data.zoom;
+          state.gridSize = snapshot.data.gridSize;
+          state.gridVisible = snapshot.data.gridVisible;
+          state.snapToGrid = snapshot.data.snapToGrid;
+          state.hiddenTags = [...snapshot.data.hiddenTags];
+          // Clear selection
+          state.selectedNodeIds = [];
+          state.selectedEdgeIds = [];
+        }),
+
+      deleteSnapshot: (snapshotId: string) =>
+        set((state) => {
+          saveToHistory(state);
+          state.snapshots = state.snapshots.filter(s => s.id !== snapshotId);
+        }),
+
+      renameSnapshot: (snapshotId: string, newName: string) =>
+        set((state) => {
+          const snapshot = state.snapshots.find(s => s.id === snapshotId);
+          if (snapshot) {
+            snapshot.name = newName;
+          }
+        }),
 
   }))
 )

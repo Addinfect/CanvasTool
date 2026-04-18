@@ -27,6 +27,7 @@ export interface CanvasNode {
     siteName?: string
   }
   childCanvasData?: CanvasExportData  // For canvas nodes: embedded canvas data
+  parentId?: string                // For grouped nodes: ID of parent group node
 }
 
 export interface CanvasEdge {
@@ -94,4 +95,24 @@ export interface CanvasState {
   __historyIndex?: number
   canvasStack: CanvasExportData[]
   currentCanvasParentNodeId?: string
+  hiddenTags: string[]
+  snapshots: CanvasSnapshot[]
+}
+
+export interface CanvasSnapshot {
+  id: string
+  name: string
+  timestamp: string
+  thumbnail?: string // base64 encoded preview image
+  data: {
+    nodes: CanvasNode[]
+    edges: CanvasEdge[]
+    pan: { x: number; y: number }
+    zoom: number
+    gridSize: number
+    gridVisible: boolean
+    snapToGrid: boolean
+    hiddenTags: string[]
+    // We could also include selectedNodeIds, selectedEdgeIds if needed
+  }
 }
