@@ -3,11 +3,13 @@ import Canvas from './components/Canvas'
 import FileMenu from './components/FileMenu'
 import { useCanvasStore } from './store/useCanvasStore'
 import MiniMap from './components/MiniMap/MiniMap'
+import Breadcrumb from './components/Breadcrumb/Breadcrumb'
 import { sampleCanvas } from './utils/sampleData'
+import { exportCanvas } from './utils/canvasExport'
 import './App.css'
 
 function App() {
-  const { loadFromLocalStorage, loadCanvas, autoSaveEnabled, nodes, edges, pan, zoom, gridSize, gridVisible, snapToGrid, copySelectedNodes, pasteNodes, undo, redo } = useCanvasStore()
+  const { loadFromLocalStorage, loadCanvas, autoSaveEnabled, nodes, edges, pan, zoom, gridSize, gridVisible, snapToGrid, copySelectedNodes, pasteNodes, undo, redo, updateChildCanvas, currentCanvasParentNodeId, canvasStack } = useCanvasStore()
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Load canvas on mount
@@ -44,6 +46,29 @@ function App() {
       }
     }
   }, [nodes, edges, pan, zoom, gridSize, gridVisible, snapToGrid, autoSaveEnabled])
+
+  // Auto-sync child canvas data when inside a nested canvas
+  useEffect(() => {
+    if (!currentCanvasParentNodeId) return // Not in a child canvas
+    
+    // Debounce sync to avoid excessive updates
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+    
+    saveTimeoutRef.current = setTimeout(() => {
+      console.log('Auto-syncing child canvas data...')
+      const state = useCanvasStore.getState()
+      const childCanvasData = exportCanvas(state)
+      updateChildCanvas(currentCanvasParentNodeId, childCanvasData)
+    }, 1000) // Sync 1 second after last change
+    
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [nodes, edges, pan, zoom, gridSize, gridVisible, snapToGrid, currentCanvasParentNodeId, updateChildCanvas])
 
   // Undo/Redo keyboard shortcuts
   useEffect(() => {
@@ -85,6 +110,7 @@ function App() {
         </div>
       </header>
       <div className="app-content">
+        <Breadcrumb />
         <Canvas />
       </div>
       <MiniMap />

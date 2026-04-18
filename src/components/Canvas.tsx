@@ -43,6 +43,10 @@ const Canvas = () => {
     addEdge,
     setZoom,
     setPan,
+    enterCanvas,
+    leaveCanvas,
+    updateChildCanvas,
+    currentCanvasParentNodeId,
   } = useCanvasStore()
   // Debug logs commented out
   // console.log('Canvas nodes:', nodes.length, nodes)
@@ -70,6 +74,10 @@ const Canvas = () => {
       case 'group':
         setEditValue(node.label || '')
         break
+      case 'canvas':
+        // Enter canvas instead of editing
+        enterCanvas(nodeId)
+        return
     }
   }
 
@@ -93,6 +101,11 @@ const Canvas = () => {
       case 'group':
         updates.label = editValue
         break
+      default:
+        // No updates for other node types (e.g., canvas)
+        setEditingNodeId(null)
+        setEditValue('')
+        return
     }
 
     updateNode(editingNodeId, updates)
@@ -281,9 +294,10 @@ const Canvas = () => {
       text: nodeType === 'text' ? 'New Text Node' : undefined,
       url: nodeType === 'link' ? 'https://example.com' : undefined,
       file: nodeType === 'file' ? 'document.pdf' : undefined,
+      canvasId: nodeType === 'canvas' ? `canvas-${Date.now()}` : undefined,
       label: nodeType === 'group' ? 'New Group' : undefined,
       color: nodeType === 'text' ? '#ff9900' :
-             nodeType === 'link' ? '#0066ff' :
+             nodeType === 'canvas' ? '#0066ff' :
              nodeType === 'file' ? '#00cc66' :
              'rgba(59, 130, 246, 0.5)'
     }
@@ -304,11 +318,25 @@ const Canvas = () => {
 
   // Node rendering
   const renderNode = (node: CanvasNode) => {
-    // console.log('Rendering node:', node.id, node.type, node.x, node.y)
+    // If this canvas node is the one we're currently inside, don't render it
+    if (node.type === 'canvas' && currentCanvasParentNodeId === node.id) {
+      console.log('Skipping canvas node because we are inside it:', node.id);
+      return null;
+    }
+    if (node.type === 'canvas') {
+      console.log('Rendering canvas node:', node.id, node.title, 'at', node.x, node.y, 'in current canvas?', currentCanvasParentNodeId === node.id);
+    }
     const isSelected = selectedNodeIds.includes(node.id)
     const fill = node.color || '#ff9900'
     const stroke = isSelected ? '#4a9eff' : '#666'
     const strokeWidth = isSelected ? 2 : 1
+    
+    // Determine display text based on node type
+    let displayText = node.text || node.url || node.file || node.label || node.type
+    if (node.type === 'canvas') {
+      const childCount = node.childCanvasData?.nodes?.length || 0
+      displayText = `🖼️ Canvas (${childCount} nodes)`
+    }
 
     return (
       <Group
@@ -360,7 +388,7 @@ const Canvas = () => {
         />
         {editingNodeId !== node.id && (
           <Text
-            text={node.text || node.url || node.file || node.label || node.type}
+            text={displayText}
             width={node.width - 20}
             height={node.height - 20}
             x={10}
@@ -373,6 +401,8 @@ const Canvas = () => {
             padding={5}
           />
         )}
+        {/* Canvas preview (for canvas nodes) */}
+        {renderCanvasPreview(node)}
         {/* Connection handles */}
         {renderConnectionHandles(node, isSelected || node.id === hoveredNodeId)}
         {/* Resize handles */}
@@ -500,6 +530,77 @@ const Canvas = () => {
         }}
       />
     ))
+  }
+
+  const renderCanvasPreview = (node: CanvasNode) => {
+    if (node.type !== 'canvas' || !node.childCanvasData?.nodes || node.childCanvasData.nodes.length === 0) {
+      return null
+    }
+
+    const childNodes = node.childCanvasData.nodes
+    // Limit preview to first 10 nodes for performance
+    const previewNodes = childNodes.slice(0, 10)
+    
+    // Find bounding box of child nodes to scale them into the parent node
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    childNodes.forEach(child => {
+      minX = Math.min(minX, child.x)
+      minY = Math.min(minY, child.y)
+      maxX = Math.max(maxX, child.x + child.width)
+      maxY = Math.max(maxY, child.y + child.height)
+    })
+    
+    // If all nodes are at same position (empty canvas), use default bounds
+    if (!isFinite(minX)) {
+      minX = minY = 0
+      maxX = maxY = 100
+    }
+    
+    const childWidth = maxX - minX
+    const childHeight = maxY - minY
+    const parentWidth = node.width - 40  // Leave some margin
+    const parentHeight = node.height - 40
+    
+    const scaleX = childWidth > 0 ? parentWidth / childWidth : 1
+    const scaleY = childHeight > 0 ? parentHeight / childHeight : 1
+    const scale = Math.min(scaleX, scaleY) * 0.8  // Scale down a bit
+    
+    const offsetX = 20  // Margin
+    const offsetY = 20
+    
+    return (
+      <Group>
+        {previewNodes.map((child, index) => {
+          // Scale child coordinates to fit within parent node
+          const x = offsetX + (child.x - minX) * scale
+          const y = offsetY + (child.y - minY) * scale
+          const width = Math.max(2, child.width * scale)
+          const height = Math.max(2, child.height * scale)
+          
+          // Determine color based on child node type
+          let color = '#888'
+          if (child.type === 'text') color = '#ff9900'
+          else if (child.type === 'canvas') color = '#0066ff'
+          else if (child.type === 'file') color = '#00cc66'
+          else if (child.type === 'group') color = 'rgba(59, 130, 246, 0.5)'
+          
+          return (
+            <Rect
+              key={index}
+              x={x}
+              y={y}
+              width={width}
+              height={height}
+              fill={color}
+              stroke="#fff"
+              strokeWidth={0.5}
+              listening={false}
+              cornerRadius={2}
+            />
+          )
+        })}
+      </Group>
+    )
   }
 
   const renderFontSizeButtons = (node: CanvasNode, showButtons: boolean) => {

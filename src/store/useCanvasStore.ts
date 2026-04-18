@@ -126,6 +126,9 @@ interface CanvasActions {
   fetchLinkPreview: (nodeId: string) => Promise<void>
   undo: () => void
   redo: () => void
+  enterCanvas: (nodeId: string) => void
+  leaveCanvas: () => void
+  updateChildCanvas: (nodeId: string, newCanvasData: CanvasExportData) => void
 }
 
 const initialState: CanvasState = {
@@ -144,6 +147,8 @@ const initialState: CanvasState = {
   __history: [],
   __historyIndex: -1,
   __isUndoingRedoing: false,
+  canvasStack: [],
+  currentCanvasParentNodeId: undefined,
 }
 
 // Helper to create a snapshot of state without history fields
@@ -504,6 +509,74 @@ export const useCanvasStore = create<CanvasState & CanvasActions>()(
         Object.assign(state, snapshot)
         state.__historyIndex++
         state.__isUndoingRedoing = false
+      }),
+
+    enterCanvas: (nodeId) =>
+      set((state) => {
+        saveToHistory(state)
+        const node = state.nodes.find(n => n.id === nodeId)
+        if (!node || node.type !== 'canvas') return
+
+        // Export current canvas to stack with parent node ID (the current canvas's parent)
+        const currentCanvas = exportCanvas(state, state.currentCanvasParentNodeId)
+        // Add parent node title to metadata for breadcrumb display
+        currentCanvas.metadata = {
+          ...currentCanvas.metadata,
+          parentNodeTitle: node.title || generateDefaultTitle(node)
+        }
+        state.canvasStack.push(currentCanvas)
+
+        // Set parent node ID (the node whose canvas we're entering)
+        state.currentCanvasParentNodeId = nodeId
+
+        // Load child canvas data or create empty canvas
+        if (node.childCanvasData) {
+          const updates = importCanvas(node.childCanvasData)
+          Object.assign(state, updates)
+        } else {
+          // Create empty canvas
+          state.nodes = []
+          state.edges = []
+          state.pan = { x: 0, y: 0 }
+          state.zoom = 1
+          state.selectedNodeIds = []
+          state.selectedEdgeIds = []
+        }
+      }),
+    leaveCanvas: () =>
+      set((state) => {
+        saveToHistory(state)
+        if (state.canvasStack.length === 0) return
+        
+        // The current canvas we're leaving (with parent node ID)
+        const currentCanvas = exportCanvas(state, state.currentCanvasParentNodeId)
+        const parentCanvas = state.canvasStack.pop()
+        
+        if (parentCanvas) {
+          // Restore the parent canvas
+          const updates = importCanvas(parentCanvas)
+          Object.assign(state, updates)
+
+          // Update childCanvasData in the parent node that contains this canvas
+          // parentCanvasId is the node ID in the parent canvas that contains the canvas we're leaving
+          const parentNodeId = currentCanvas.parentCanvasId
+          if (parentNodeId) {
+            const parentNode = state.nodes.find(n => n.id === parentNodeId)
+            if (parentNode && parentNode.type === 'canvas') {
+              parentNode.childCanvasData = currentCanvas
+            }
+          }
+        }
+
+        // Set parent node ID to the parent of the restored canvas
+        state.currentCanvasParentNodeId = parentCanvas?.parentCanvasId
+      }),
+    updateChildCanvas: (nodeId, newCanvasData) =>
+      set((state) => {
+        const node = state.nodes.find(n => n.id === nodeId)
+        if (node && node.type === 'canvas') {
+          node.childCanvasData = newCanvasData
+        }
       }),
 
   }))

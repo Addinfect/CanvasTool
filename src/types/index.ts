@@ -26,6 +26,7 @@ export interface CanvasNode {
     image?: string
     siteName?: string
   }
+  childCanvasData?: CanvasExportData  // For canvas nodes: embedded canvas data
 }
 
 export interface CanvasEdge {
@@ -54,7 +55,9 @@ export interface CanvasExportData {
     created?: string
     modified?: string
     author?: string
+    parentNodeTitle?: string
   }
+  parentCanvasId?: string
   canvas: {
     pan: { x: number; y: number }
     zoom: number
@@ -89,4 +92,6 @@ export interface CanvasState {
   autoSaveEnabled?: boolean
   __history?: CanvasState[]
   __historyIndex?: number
+  canvasStack: CanvasExportData[]
+  currentCanvasParentNodeId?: string
 }

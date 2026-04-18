@@ -6,12 +6,13 @@ export const CANVAS_VERSION = '1.0'
 /**
  * Export current canvas state to CanvasExportData
  */
-export function exportCanvas(state: CanvasState): CanvasExportData {
+export function exportCanvas(state: CanvasState, parentCanvasId?: string): CanvasExportData {
   return {
     version: CANVAS_VERSION,
     metadata: {
       modified: new Date().toISOString(),
     },
+    parentCanvasId,
     canvas: {
       pan: state.pan,
       zoom: state.zoom,

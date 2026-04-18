@@ -18,7 +18,7 @@ const WheelMenu = ({ x, y, onSelect, onClose, zoom = 1 }: WheelMenuProps) => {
   // Four node types with icons and colors
   const options: { type: NodeType; label: string; icon: string; color: string }[] = [
     { type: 'text', label: 'Text', icon: '📝', color: '#ff9900' },
-    { type: 'link', label: 'Link', icon: '🔗', color: '#0066ff' },
+    { type: 'canvas', label: 'Canvas', icon: '🖼️', color: '#0066ff' },
     { type: 'file', label: 'File', icon: '📁', color: '#00cc66' },
     { type: 'group', label: 'Group', icon: '📦', color: 'rgba(59, 130, 246, 0.5)' },
   ]
