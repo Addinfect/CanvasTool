@@ -51,14 +51,31 @@ const Canvas = () => {
   // Debug logs commented out
   // console.log('Canvas nodes:', nodes.length, nodes)
   // console.log('Pan:', pan.x, pan.y, 'Zoom:', zoom)
+
+  // Debug: log when entering/leaving canvas
+  useEffect(() => {
+    console.log('Canvas component: currentCanvasParentNodeId =', currentCanvasParentNodeId, 'nodes count =', nodes.length, 'componentId:', Date.now())
+    if (currentCanvasParentNodeId) {
+      console.log('Currently inside canvas node:', currentCanvasParentNodeId)
+      const parentNode = nodes.find(n => n.id === currentCanvasParentNodeId)
+      console.log('Parent node found:', !!parentNode, 'type:', parentNode?.type)
+    }
+  }, [currentCanvasParentNodeId, nodes])
   // Inline editing handlers
   const handleNodeDoubleClick = (nodeId: string) => {
-    setEditingNodeId(nodeId)
-
     const node = nodes.find(n => n.id === nodeId)
     if (!node) return
 
     console.log('Starting edit for node:', nodeId, node.type)
+    
+    // Handle canvas nodes differently - enter canvas instead of editing
+    if (node.type === 'canvas') {
+      enterCanvas(nodeId)
+      return
+    }
+    
+    // For non-canvas nodes, start editing
+    setEditingNodeId(nodeId)
     
     // Set initial value based on node type
     switch (node.type) {
@@ -74,10 +91,6 @@ const Canvas = () => {
       case 'group':
         setEditValue(node.label || '')
         break
-      case 'canvas':
-        // Enter canvas instead of editing
-        enterCanvas(nodeId)
-        return
     }
   }
 
@@ -320,11 +333,11 @@ const Canvas = () => {
   const renderNode = (node: CanvasNode) => {
     // If this canvas node is the one we're currently inside, don't render it
     if (node.type === 'canvas' && currentCanvasParentNodeId === node.id) {
-      console.log('Skipping canvas node because we are inside it:', node.id);
+      console.log('Skipping canvas node because we are inside it:', node.id, 'currentCanvasParentNodeId:', currentCanvasParentNodeId, 'nodes list contains parent?', nodes.includes(node));
       return null;
     }
     if (node.type === 'canvas') {
-      console.log('Rendering canvas node:', node.id, node.title, 'at', node.x, node.y, 'in current canvas?', currentCanvasParentNodeId === node.id);
+      console.log('Rendering canvas node:', node.id, node.title, 'at', node.x, node.y, 'in current canvas?', currentCanvasParentNodeId === node.id, 'currentCanvasParentNodeId:', currentCanvasParentNodeId, 'componentId:');
     }
     const isSelected = selectedNodeIds.includes(node.id)
     const fill = node.color || '#ff9900'
@@ -927,17 +940,7 @@ const Canvas = () => {
             listening={false}
           />
           
-          {/* Test rectangle */}
-          <Rect
-            x={50}
-            y={50}
-            width={100}
-            height={60}
-            fill="#00ff00"
-            stroke="#ffffff"
-            strokeWidth={2}
-            listening={false}
-          />
+
 
           {/* Grid lines (infinite) */}
           {(() => {
